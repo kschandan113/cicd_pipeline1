@@ -1,0 +1,44 @@
+pipeline {
+    agent any
+
+    environment {
+        IMAGE_NAME = 'kschandan113/flask-devops'
+    }
+    stages {
+        stage('Pull Code') {
+            steps { git "https://github.com/kschandan113/cicd_pipeline1.git"}
+        }
+        stage("OWASP Dependency Check") {
+            steps { dependencyCheck additionalArguments: '--scan ./'}
+        }
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('sonarqube') {
+                    sh 'sonar-scanner \\
+                        -Dsonar.projectKey=flask-app \\
+                        -Dsonar.sources=. \\
+                        -Dsonar.host.url=http://localhost:9000 \\
+                        -Dsonar.login=squ_361d3be3b449e116df2a2bd33f4948777a5b0cdb'
+                }
+            
+            }
+        }
+        stage('Docker Build') {
+            steps { sh 'docker build -t $IMAGE_NAME:$BUILD_NUMBER .' }
+           
+        }
+        
+        stage('Trivy Scan') {
+            steps { sh 'Trivy image $IMAGE_NAME:$BUILD_NUMBER' }
+        }
+
+        stage('Docker Push') {
+            steps { 
+                withDockerRegistry([credentialsId: 'dockerhub']) {
+                    sh 'docker push $IMAGE_NAME:$BUILD_NUMBER'
+                }
+            
+            }
+        }
+    }
+}
